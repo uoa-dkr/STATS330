@@ -1,0 +1,158 @@
+---
+title: "A4"
+author: "Kerui Du"
+date: "05/10/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Q1
+
+## a
+
+```{r 1a}
+Caffeine2.df=data.frame(n=rep(300,5),levels=seq(0,200,50),
+                        A_grades=c(109,155,175,158,103))
+fit=glm(cbind(A_grades,n-A_grades)~levels+I(levels^2),family=binomial,data = Caffeine2.df)
+
+ns=Caffeine2.df$n
+xs=Caffeine2.df$levels
+prob = with(Caffeine2.df,A_grades/n)
+
+est = matrix(0,nr=1000,nc=2)
+x_peak = -coef(fit)[2]/coef(fit)[3]/2
+
+for (i in 1:nrow(est)) {
+  ys = rbinom(length(ns),ns,prob) 
+  model=glm(cbind(ys,ns-ys)~xs+I(xs^2),family=binomial)
+  est[i,]=coef(model)[2:3]
+}
+
+hist(-est[,1]/est[,2]/2,probability = T,xlab = 'x_peak',main='Histogram of x_peak')
+abline(v=x_peak,lwd=5,col='red')
+```
+
+x_peak looks normality distributed and the peak of the histogram is around 98, which is pretty close to the x_peak(red line).
+
+
+## 1b
+
+```{r 1b}
+c(2*x_peak-quantile(-est[,1]/est[,2]/2,.975),
+  2*x_peak-quantile(-est[,1]/est[,2]/2,.025))
+```
+
+
+## 1c
+
+The interval we obtained above is similar to the result that we gain from assignment 3, and it seems that the non-parametric CIs are slightly wider than the parametric CIs.
+
+
+
+# Q2
+
+## 2a
+```{r 2a}
+train.df = read.table("data/train.txt")
+names(train.df) = c("D", paste("V", 1:256, sep=""))
+all(!is.na(train.df)) # examine if NA exist
+all(train.df$D==7|train.df$D==3) # D has value either 7 or 3
+all(train.df[-1]<=1 & train.df[-1]>=-1) # rest of columns between -1 to 1
+```
+
+
+## 2b
+```{r 2b}
+mod=par(mfrow=c(5,5), mar = c(1,1,1,1))
+for(k in 1:25){
+  z = matrix(unlist(train.df[k,-1]), 16,16)
+  zz = z
+  for(j in 16:1)zz[,j]=z[,17-j]
+  image(zz, col = gray((32:0)/32))
+  box()
+  text(0.1,0.9,train.df$D[k],cex=1.5)
+}
+par(mod)
+
+```
+
+By looking these image, we can easily detect that the there is a significant difference between digit 3 and digit 7 at bottom of each image, therefore the position v179/v180; v195/v196 should have value close to 1.
+
+## 2c
+```{r 2c}
+corr = cor(train.df[,1:257])[,1]
+varb=names(sort(abs(corr),decreasing = T))[2:21];varb
+
+```
+
+## 2d
+```{r 2d}
+Y = train.df$Y = ifelse(train.df$D==7,1,0)
+train.df1 = data.frame(train.df[varb],Y)
+Full.mod=glm(Y~.,family = binomial,data = train.df1)
+fitted_logit = predict(Full.mod,train.df1)
+head(fitted_logit)
+```
+
+
+## 2e
+```{r 2e}
+tb = table(round(train.df1$Y), round(fitted(Full.mod)));tb
+sum(tb[tb!=diag(tb)])/sum(tb)
+```
+
+
+## 2f
+```{r 2f}
+null.model = glm(Y~1, data=train.df, family=binomial)
+#step(Full.mod, direction = "backward")
+sub.mod = step(null.model, formula(Full.mod),direction="both", trace=0)
+tb = table(round(train.df1$Y), round(fitted(sub.mod)));tb
+sum(tb[tb!=diag(tb)])/sum(tb)
+```
+
+The value of this model is pretty much same to the value from full.mod above.
+
+
+
+## 2g
+```{r 2g}
+train.df2 = data.frame(train.df1[, names(sub.mod$coefficients)[-1]],Y)
+
+set.seed(330)
+PE.fun <- function() {
+  sub <- sample(nrow(train.df2), floor(nrow(train.df2) * 0.9)) # 9 portions
+  training <- train.df2[sub, ] # 90% for training 
+  testing <- train.df2[-sub, ] # 10% for testing
+  glm.fit = glm(Y~.,data = training,family = binomial)
+  tb=table(round(testing$Y),round(predict(glm.fit,testing[,-11],type = 'resp')))
+  (tb[1,2]+tb[2,1])/sum(tb) # prediction error
+}
+PE.fun()
+
+
+```
+
+The prediction error in cross validation depends on the observations that have been assigned in each training and testing dataset, then slightly different value from above, but it's close enough.
+
+
+## 2h
+```{r 2h}
+test.df=read.table('data/test.txt')
+Y=test.df$Y=ifelse(test.df$V1==7,1,0)
+
+test1.df=data.frame(test.df[names(coef(sub.mod)[-1])],Y)
+pr_out=table(test1.df$Y,round(predict(sub.mod,test1.df[,-11],type = 'resp')));pr_out
+
+sum(pr_out[pr_out!=diag(pr_out)])/sum(pr_out)
+
+
+```
+
+
+An estimate of the "out-of-sample" prediction error for the models from previous question is around 0.067, not much difference by 'in-sample' prediction error, which indicates both models are good for prediction.
+
+

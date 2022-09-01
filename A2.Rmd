@@ -1,0 +1,212 @@
+---
+title: "stats330 A2"
+author: "Kerui Du"
+date: "20/08/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(s20x)
+library(MASS)
+library(statmod)
+Visits.df <- read.csv('data/Visits.csv')
+Caffeine.df = read.csv("data/Caffeine.csv")
+```
+
+## Question 1
+```{r a}
+mean(Visits.df$visits)
+var(Visits.df$visits)
+observed=table(Visits.df$visits)
+observed
+n=sum(observed)
+n
+```
+
+Two reasons that this output let us to believe that the Poisson model may not be appropriate for describing these data.
+
+The first reason is that as one of the properties of poisson distribution, its mean should equal to its variance, however, in this dataset, the difference between mean and variance is relatively large.
+
+The second reason is that since it has mean around 5.8, which means the peak ought to reside between 5 and 6(or 6), whereas it's at 1.
+
+
+```{r b}
+fit1 <- glm(visits~1, family = 'poisson', data = Visits.df)
+exp(fit1$coefficients)
+```
+
+There are equivalent
+
+
+```{r c}
+x=as.numeric(names(observed))
+expected.Pois=n*dpois(x, lambda=exp(coef(fit1)))
+plot(x,observed, type="h",lwd=1, lend="butt", xlab="# of visits",
+     ylab="count of visits",
+     main="Observed vs Poisson expected counts",
+     xlim=range(x), ylim= c(0, max(observed,expected.Pois)))
+lines(x+.2, expected.Pois,type="h",
+      lwd=1, lend="butt",col="red")
+legend("topright", fill=c("black","red"),
+       legend=c("observed","expected"))
+
+```
+
+The distribution of observed is quite different from the distribution of expected, dpois give us the poisson distribution with mean 5.8, but distribution of observed has approximately mean 0, therefore, the observed model is not adequate for fitting the data.
+
+
+```{r d}
+var <- exp(coef(fit1));var
+prop <- 1-ppois(12,exp(coef(fit1)));prop
+```
+
+
+
+```{r e}
+Egt5=expected.Pois>=5
+E.Pois=c(expected.Pois[Egt5], sum(expected.Pois[!Egt5])) 
+length(O.Pois)
+O.Pois=c(observed[Egt5], sum(observed[!Egt5]))
+E.Pois;O.Pois
+
+```
+
+
+```{r f}
+sum((O.Pois-E.Pois)^2/E.Pois)
+1-pchisq(sum((O.Pois-E.Pois)^2/E.Pois),0)
+
+```
+
+
+## Question 2
+
+```{r a}
+fit2 <- glm.nb(visits~1, data = Visits.df)
+mean <- exp(fit2$coefficients[1]);mean
+theta <- fit2$theta;theta
+```
+
+The estimate of its mean is 5.8 and θ is around 1.04.
+
+
+```{r 2b} 
+x=as.numeric(names(observed))
+expected.nb=n*dnbinom(x, mu=mean, size = theta)
+plot(x,observed, type="h",lwd=1, lend="butt", xlab="# of visits",
+     ylab="count of visits",
+     main="Observed vs Poisson expected counts",
+     xlim=range(x), ylim= c(0, max(observed,expected.nb)))
+lines(x+.2, expected.nb,type="h",
+      lwd=1, lend="butt",col="red")
+legend("topright", fill=c("black","red"),
+       legend=c("observed","expected"))
+```
+
+It is obvious that the distribution of observed and expected is roughly same, likewise, each paired vertical line(two adjacent black and red lines) have approximately same height.
+
+
+```{r 2c}
+prop <- 1 - pnbinom(12, mu = mean, size = theta);prop
+var <- mean+mean^2/theta;var
+```
+
+
+```{r 2d}
+expect_nb=expected.nb>=5
+E.nb=c(expected.nb[expect_nb], sum(expected.nb[!expect_nb]));E.nb
+O.nb=c(observed[expect_nb], sum(observed[!expect_nb]))
+J <- length(E.nb);J
+p <- 2;p
+```
+
+```{r 2e}
+x_square <- sum((O.nb-E.nb)^2/E.nb);x_square
+p_value <- 1-pchisq(x_square, df = J-p);p_value
+```
+
+
+## Question 3
+
+```{r 3a}
+mod.null=glm(cbind(Agrade,n-Agrade)~1, family=binomial, data = Caffeine.df)
+mod1=glm(cbind(Agrade,n-Agrade)~caffeine, family=binomial, data = Caffeine.df)
+summary(mod1)
+1-pchisq(deviance(mod1), df.residual(mod1))
+plot(mod1, which=1)
+```
+
+
+```{r 3b}
+LLcaffeine=function(p,n=Caffeine.df$n, y=Caffeine.df$Agrade){ 
+out=y*log(p)+(n-y)*log(1-p)
+out[is.na(out)]=0
+out
+}
+ps <- LLcaffeine(Caffeine.df$Agrade/Caffeine.df$n);ps
+```
+
+
+```{r 3c}
+ave <- sum(Caffeine.df$Agrade/Caffeine.df$n)/11;ave
+pO <- LLcaffeine(ave);pO
+```
+
+```{r 3d}
+sum(ps)
+sum(pO)
+dev_null <- 2*(sum(ps)-sum(pO));dev_null
+```
+
+```{r 3e}
+preds <- mod1$fitted.values
+preds
+```
+
+```{r 3f}
+dev_res <- 2*(sum(ps)-sum(LLcaffeine(preds)));dev_res
+```
+
+```{r 3g}
+pearson_red=(Caffeine.df$Agrade-Caffeine.df$n*preds)/sqrt(Caffeine.df$n*preds*(1-preds))
+pearson_red
+residuals(mod1,"pearson")
+```
+
+```{r 3h}
+mod2 <- glm(cbind(Agrade,n-Agrade)~caffeine, family='quasibinomial', data =Caffeine.df)
+summary(mod2)
+sum(pearson_red^2)/mod2$df.residual
+```
+
+
+```{r 3i}
+plot(Caffeine.df$caffeine, Caffeine.df$Agrade/Caffeine.df$n, xlab = 'amount of caffeine',
+     ylab = 'proportion of A grades', ylim = c(0, 0.6))
+```
+
+```{r 3j}
+mod3 <- glm(cbind(Agrade,n-Agrade)~poly(caffeine, 2, raw = T), family='binomial', data =Caffeine.df)
+summary(mod3)
+plot(mod1,1)
+plot(predict(mod1), resid(mod1, 'deviance'))
+plot(predict(mod1), qresid(mod1))
+
+
+plot(mod3,1)
+plot(predict(mod3), resid(mod3, 'deviance'), ylim = c(-2, 2))
+plot(predict(mod3), qresid(mod3))
+```
+
+
+
+
+
+
+
+
+
+
+
+

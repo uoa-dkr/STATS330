@@ -1,0 +1,214 @@
+---
+title: "A3"
+author: "Kerui Du"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+Caffeine.df = read.csv("data/Caffeine.csv")
+library(mgcv)
+```
+
+## Q1
+
+### 1a
+```{r 1a}
+## null model (order 0)
+mod.0=glm(cbind(Agrade,n-Agrade)~1, family=binomial,data =Caffeine.df)
+
+## linear (order 1)
+mod.1=glm(cbind(Agrade,n-Agrade)~caffeine,family=binomial, data =Caffeine.df)
+
+## quadratic (order 2)
+mod.2=glm(cbind(Agrade,n-Agrade)~caffeine+I(caffeine^2),
+          family=binomial, data =Caffeine.df)
+
+## cubic (order 2)
+mod.3=glm(cbind(Agrade,n-Agrade)~caffeine+I(caffeine^2)+I(caffeine^3),
+          family=binomial,data=Caffeine.df)
+
+## gam
+mod.gam=gam(cbind(Agrade,n-Agrade)~s(caffeine),
+            family=binomial, data =Caffeine.df)
+
+# look at null, order 1,2,3 and gam models
+caffs=seq(0, 500, by=1)
+new.df=data.frame(caffeine=caffs)
+p0=predict(mod.0, newdata=new.df, type="response")
+p1=predict(mod.1, newdata=new.df, type="response")
+p2=predict(mod.2, newdata=new.df, type="response")
+p3=predict(mod.3, newdata=new.df, type="response")
+p.gam=predict(mod.gam, newdata=new.df,type="response")
+
+# plot and with 5 different lines
+plot(I(Agrade/n)~caffeine, ylim=c(0,.6),
+     main ="Proportion of A grades vs Caffeine", data=Caffeine.df)
+lines(caffs, p.gam, col="blue")
+lines(caffs, p0, col="red")
+lines(caffs, p1, col="orange")
+lines(caffs, p2, col="green")
+lines(caffs, p3, col="purple")
+legend('topright', lty=1,lwd=3, col=c("blue", "red","orange",'green','purple'),
+       legend=c("gam", "null","linear",'quadratic','cubic'))
+```
+
+Based on the plot, I'd say both the gam and cubic model fits the data best since either two lines are close or overlapped, and the trend of these two lines pretty much along with most of data. On the contrary, the rest of the three lines seems does not describe the pattern very well. Therefore, gam and cubic fit the data best. 
+
+
+### 1b
+```{r 1b}
+test1=anova(mod.0,mod.1,test = 'Chisq')
+test2=anova(mod.1,mod.2,test = 'Chisq');test2
+test3=anova(mod.2,mod.3,test = 'Chisq');test3
+coef(summary(mod.3));coef(summary(mod.2))
+```
+
+By mathematical definition, we know that the null model is the submodel of the linear model. When $\beta_{1}$ is 0, then the null model is the same as the linear model. The linear model is the submodel of the quadratic model; when $\beta_{2}$ is 0, then the linear model is the same as the quadratic model. The quadratic model is the submodel of a cubic model; when $\beta_{3}=0$, then the quadratic model is the same as the cubic model. However, when we inspect test3(above), we realize that the p-value is not statistically significant, which means we may have no evidence to reject the null hypothesis. That is, the submodel is appropriate. There is no cubic effect of grade by caffeine.
+Alternatively, we can see that the p-value of the cubic term in the cubic model is above 0.05, which suggests we need to get rid of it. For test2, we have strong evidence against the null hypothesis. Overall, the quadratic model best fits these data with the least number of terms used.
+
+
+### 1c
+```{r 1c}
+AIC(mod.0,mod.1,mod.2,mod.3,mod.gam)
+```
+
+As we can see, the difference between mod.0 and the rest of the models is quite significant, and the difference between mod.1 to mod.2/mod.3/mod.gam is around 10, then it is sensible to consider mod.2/mod.3/mod.gam rather than mod.0 and mod.1, since there is a slightly different (within 2) amongst mod.2/mod.3/mod.gam. Hence, it is reasonable to pick mod.2 as the best model because it has a smaller df(less complexity) than mod.3 and mod.gam, and its AIC is good enough compared with mod.3/mod.gam.
+
+
+### 1d
+```{r 1d}
+library(MuMIn)
+options(na.action = "na.fail")
+msubset <- expression(dc(caffeine, `I(caffeine^2)`, `I(caffeine^3)`))
+all.fits <- dredge(mod.3, subset=msubset)
+
+# adaption
+head(all.fits)
+first.model <- get.models(all.fits, 1)[[1]]
+summary(first.model)
+```
+
+It seems that the quadratic model is the best model to fit the data, since it has significant term(I(caffeine^2)) on its model and also it owns the relatively smaller AICc value.
+
+
+### 1e
+
+I would propose mod.2 to be the best model. Here is a couple of reasons why I pick this model. First of all, the significant term, it's apparent that cubic term is not significant at the cubic model, whereas, quadratic term is significant at the quadratic model, in which suggests us the cubic term is not appropriate, secondly when we apply the anova test, it also suggests us that there may not have the cubic effect. Finally, AICc(because the dataset only has a few observations, use AICc instead of AIC) advises us to trust our intuition, as it has less complexity and smaller AICc value.
+
+
+### 1f
+```{r 1f}
+mod.3a=glm(cbind(Agrade,n-Agrade)~poly(caffeine,3),family=binomial, data=Caffeine.df)
+pred = predict(mod.3a,newdata=new.df,type="response")
+diff = round(pred,6)==round(p3,6);table(diff)
+round(cor(model.matrix(mod.3a)[,-1]),3)
+```
+
+By using 'predict' and 'cor' function above, it's evident that the predictions of the data we observe using mod.3 and mod.3a are identical(first 3 snippets above), meanwhile, the correlation among these terms have been eliminated(all become 0)
+
+
+
+## Q2
+
+### 2a
+```{r 2a}
+Caffeine2.df=data.frame(n=rep(300,5),levels=seq(0,200,50),
+                        A_grades=c(109,155,175,158,103))
+mod.quad=glm(cbind(A_grades,n-A_grades)~levels+I(levels^2),
+             family=binomial, data=Caffeine2.df)
+summary(mod.quad)
+vcov(mod.quad)
+plot(A_grades/n~levels,data = Caffeine2.df,pch=16,cex=1.5,
+     main='proportion of A grade with different caffeine levels')
+lines(Caffeine2.df$levels,fitted(mod.quad),)
+
+```
+Looks like there is a quadratic relationship between the different levels of caffeine and probability of getting A, and the caffeine level around 100 has the highest chance to A, also, the extreme levels(0 or 200) of caffeine seems to have less chance to gain A.
+
+
+### 2b
+```{r 2b}
+x_peak = -coef(mod.quad)[2]/coef(mod.quad)[3]/2;x_peak
+```
+
+
+### 2c
+```{r 2c}
+Delta.g = c(0, -1/coef(mod.quad)[3]/2, coef(mod.quad)[2]/coef(mod.quad)[3]^2/2)
+Delta.g <- unname(Delta.g);Delta.g
+```
+
+Seems $x_{peak}$ does not contain $\beta_{0}$ and the gradient vector of $x_{peak}$ is around (0,5360.6,1057292.6).
+
+
+### 2d
+```{r 2d}
+x_peak_var=t(Delta.g)%*%vcov(mod.quad)%*%Delta.g;x_peak_var
+```
+
+We estimate that the variance of $x_{peak}$ is around 16.5, then we know $se(\hat{x})$ is our square root of x_peak_var.
+
+
+### 2e
+```{r 2e}
+CI.x <- -coef(mod.quad)[2]/coef(mod.quad)[3]/2 + 
+  1.96 * c(-1, 1) * c(sqrt(x_peak_var))
+CI.x
+```
+
+So the 95% CI for $x_{peak}=-\frac{\beta_{1}}{2\beta_{2}}$ is approximately between 90.7 to 106.6 mg of caffeine.
+
+
+## Q3
+
+### 3a
+```{r 3a}
+ns=Caffeine2.df$n
+xs=Caffeine2.df$levels
+preds = fitted(mod.quad)
+unname(preds);Caffeine2.df$A_grades/Caffeine2.df$n
+ys=rbinom(length(ns),size=ns, prob=preds)
+ys
+```
+
+The true proportion of obtain A grade by different caffeine levels is roughly same as the predicted proportion from mod.quad.
+
+
+### 3b
+```{r 3b}
+n = 1e3
+xpeaks <- devs <- numeric(n)
+for (i in 1:n) {
+  ys=rbinom(length(ns),size=ns, prob=preds)
+  mod.sim=glm(cbind(ys,ns-ys)~xs+I(xs^2),family=binomial)
+  xpeaks[i]=-coef(mod.sim)[2]/coef(mod.sim)[3]/2
+  devs[i]=deviance(mod.sim)
+}
+head(xpeaks);head(devs);median(devs)
+mean(xpeaks);mean(devs>qchisq(.95,2))
+```
+
+Recall that x_peak we have calculated was 98.6, which almost same as our mean of estimated x_peak,
+and around 5% deviance is not significant
+
+### 3c
+```{r 3c}
+hist(xpeaks);abline(v=x_peak,col='red',lwd=6)
+quantile(xpeaks,c(.025,.975));mean(xpeaks)
+```
+As we can that the x_peak is at the right spot of histogram(peak), which means we done well, meanwhile, x_peak is within the interval of 95% quantiles(about 90 to 106).
+
+### 3d
+```{r 3d}
+hist(devs,breaks=100,prob=T)
+dvs=sort(devs)
+lines(dvs, dchisq(dvs,2),col="blue")
+```
+
+The ??? is 2 as it is equivalent to the degree of freedom of deviance. It's obvious that the line go along with the trend of data, which means the deviance that we have obtained seem to come from an appropriate Chi-squared distribution.
+
+

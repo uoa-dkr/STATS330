@@ -1,0 +1,33 @@
+---
+title: "revision"
+author: "Kerui Du"
+date: "06/11/2021"
+output: 
+  pdf_document:
+    latex_engine: xelatex
+fontsize: 12pt
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+$\mu_{i}=\beta_{0}+\beta_{1}x+\epsilon_{i}$
+$\epsilon_{i} \sim N(0,\sigma^{2})$
+$Y_{i} \sim N(\mu_{i},\sigma^{2})$
+
+
+
+
+
+
+
+
+
+
+
+
+
+
